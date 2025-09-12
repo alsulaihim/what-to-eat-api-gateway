@@ -1,0 +1,128 @@
+version: '3.8'
+
+services:
+  # NestJS API Gateway
+  api-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: food-api-gateway
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/what_to_eat_db?schema=public
+      - PORT=3001
+      # Firebase config (you'll need to add your actual values)
+      - FIREBASE_PROJECT_ID=what-to-eat-food-app
+      - FIREBASE_PRIVATE_KEY=${FIREBASE_PRIVATE_KEY}
+      - FIREBASE_CLIENT_EMAIL=${FIREBASE_CLIENT_EMAIL}
+      # API Keys (you'll need to add your actual values)
+      - GOOGLE_PLACES_API_KEY=${GOOGLE_PLACES_API_KEY}
+      - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
+      - GOOGLE_TRENDS_API_KEY=${GOOGLE_TRENDS_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      # Security
+      - JWT_SECRET=${JWT_SECRET:-your_jwt_secret_here_make_it_long_and_random}
+      # Rate limiting
+      - THROTTLE_TTL=60
+      - THROTTLE_LIMIT=100
+      # CORS
+      - CORS_ORIGIN=http://localhost:3000,http://localhost:3001
+      # Logging
+      - LOG_LEVEL=debug
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+    networks:
+      - food-app-network
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: food-postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=what_to_eat_db
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/pgdata
+      - ./prisma/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    networks:
+      - food-app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d what_to_eat_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis for caching
+  redis:
+    image: redis:7-alpine
+    container_name: food-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - food-app-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Database Admin (pgAdmin)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: food-pgadmin
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@foodapp.com
+      - PGADMIN_DEFAULT_PASSWORD=admin123
+    ports:
+      - "8080:80"
+    depends_on:
+      - postgres
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    restart: unless-stopped
+    networks:
+      - food-app-network
+
+  # Redis Admin (RedisInsight)
+  redisinsight:
+    image: redislabs/redisinsight:latest
+    container_name: food-redisinsight
+    ports:
+      - "8001:8001"
+    volumes:
+      - redisinsight_data:/db
+    depends_on:
+      - redis
+    restart: unless-stopped
+    networks:
+      - food-app-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+  redisinsight_data:
+    driver: local
+
+networks:
+  food-app-network:
+    driver: bridge

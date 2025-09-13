@@ -1,0 +1,81 @@
+export declare class RestaurantRecommendationDto {
+    id?: string;
+    name?: string;
+    address?: string;
+    rating?: number;
+    priceLevel?: string;
+    priceRange?: string;
+    cuisineTypes?: string[];
+    distance?: number;
+    confidenceScore?: number;
+    recommendationReason?: string;
+    isTrending?: boolean;
+    estimatedWaitTime?: number;
+    phoneNumber?: string;
+    website?: string;
+    googleMapsUrl?: string;
+    editorialSummary?: string;
+    businessStatus?: string;
+    primaryType?: string;
+    primaryTypeDisplay?: string;
+    shortAddress?: string;
+    photoUrls?: string[];
+    isOpenNow?: boolean;
+    openingHours?: string[];
+    hoursToday?: string;
+    supportsDelivery?: boolean;
+    supportsTakeout?: boolean;
+    supportsDineIn?: boolean;
+    supportsCurbsidePickup?: boolean;
+    acceptsReservations?: boolean;
+    paymentOptions?: any;
+    parkingOptions?: any;
+    accessibilityOptions?: any;
+    allowsDogs?: boolean;
+    outdoorSeating?: boolean;
+    liveMusic?: boolean;
+    kidFriendly?: boolean;
+    servesBeer?: boolean;
+    servesWine?: boolean;
+    servesCocktails?: boolean;
+    servesBreakfast?: boolean;
+    servesLunch?: boolean;
+    servesDinner?: boolean;
+    servesBrunch?: boolean;
+    servesVegetarianFood?: boolean;
+    servesCoffee?: boolean;
+    servesDessert?: boolean;
+    goodForChildren?: boolean;
+    goodForGroups?: boolean;
+    goodForWatchingSports?: boolean;
+    evChargeOptions?: any;
+    recentReviews?: Array<{
+        author_name?: string;
+        author_photo?: string;
+        rating?: number;
+        text?: string;
+        time?: string;
+        relative_time?: string;
+    }>;
+    popularDishes?: string[];
+    socialInsights?: {
+        recentOrderTrends: string;
+        popularTimes: string;
+        crowdLevel: 'low' | 'medium' | 'high';
+    };
+}
+export declare class RecommendationResponseDto {
+    recommendations?: RestaurantRecommendationDto[];
+    totalResults?: number;
+    searchLocation?: string;
+    searchRadius?: number;
+    overallConfidence?: number;
+    aiSummary?: string;
+    socialTrends?: {
+        trendingCuisines: string[];
+        popularMealTimes: string[];
+        localEvents: string[];
+    };
+    timestamp?: Date;
+    requestId?: string;
+}

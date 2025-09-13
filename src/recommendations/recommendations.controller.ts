@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Req, Get, Query } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Req, Get, Query, Delete, Param } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { RecommendationsService } from './recommendations.service';
@@ -90,8 +90,43 @@ export class RecommendationsController {
     );
   }
 
+  @Delete('history')
+  @ApiOperation({
+    summary: 'Clear all recommendation history',
+    description: 'Delete all recommendation history for the authenticated user'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Successfully cleared recommendation history',
+  })
+  async clearRecommendationHistory(
+    @Req() request: Request,
+  ): Promise<{ success: boolean }> {
+    const userId = (request as any).user?.uid;
+
+    return this.recommendationsService.clearUserRecommendationHistory(userId);
+  }
+
+  @Delete('history/:entryId')
+  @ApiOperation({
+    summary: 'Delete a specific recommendation history entry',
+    description: 'Delete a single recommendation history entry for the authenticated user'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Successfully deleted recommendation entry',
+  })
+  async deleteRecommendationEntry(
+    @Param('entryId') entryId: string,
+    @Req() request: Request,
+  ): Promise<{ success: boolean }> {
+    const userId = (request as any).user?.uid;
+
+    return this.recommendationsService.deleteUserRecommendationEntry(userId, entryId);
+  }
+
   @Get('trending')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get trending restaurants',
     description: 'Get currently trending restaurants based on social intelligence data'
   })

@@ -12,69 +12,83 @@ datasource db {
 
 // User profile model - stores app-specific user data
 model User {
-  id        String   @id @default(cuid())
-  firebaseUid String @unique @map("firebase_uid") // References Firebase Auth user
-  email     String   @unique
-  displayName String? @map("display_name")
-  photoURL  String?  @map("photo_url")
-  provider  String   // 'google' | 'apple' | 'email'
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-  lastLogin DateTime @default(now()) @map("last_login")
-  
+  id          String   @id @default(cuid())
+  firebaseUid String   @unique @map("firebase_uid") // References Firebase Auth user
+  email       String   @unique
+  displayName String?  @map("display_name")
+  photoURL    String?  @map("photo_url")
+  provider    String // 'google' | 'apple' | 'email'
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  lastLogin   DateTime @default(now()) @map("last_login")
+
   // User preferences stored as JSON
   preferences Json?
-  
+
+  // Demographic data for enhanced recommendations
+  nationality                   String? // ISO 3166-1 alpha-2 code
+  ageGroup                     String? // '18-24', '25-34', '35-44', '45-54', '55-64', '65+'
+  gender                       String? // 'male', 'female', 'other', 'prefer_not_to_say'
+  culturalBackground           String? // 'asian', 'black', 'hispanic_latino', 'middle_eastern', etc.
+  spiceToleranceLevel          Int?    // 1-10 scale
+  authenticityPreference       Int?    // 1-10 scale
+  languagePreference           String? // ISO 639-1 code
+  incomeBracket               String? // 'low', 'lower_middle', 'middle', 'upper_middle', 'high', 'prefer_not_to_say'
+  religiousDietaryRequirements String? // JSON array of dietary requirements
+  familyStructure             String? // 'single', 'couple', 'family_with_kids', etc.
+  occupationCategory          String? // 'student', 'technology', 'healthcare', etc.
+  livingArea                  String? // 'urban', 'suburban', 'rural'
+
   // Relations
   recommendations RecommendationHistory[]
-  apiUsage       ApiUsageTracking[]
-  
+  apiUsage        ApiUsageTracking[]
+
   @@map("users")
 }
 
 // Stores user recommendation history
 model RecommendationHistory {
-  id          String   @id @default(cuid())
-  userId      String   @map("user_id")
-  requestData Json     @map("request_data") // Original preference request
-  recommendations Json // Array of recommended restaurants
-  confidence  Float    // Average confidence score
-  selectedRestaurant String? @map("selected_restaurant") // If user selected one
-  createdAt   DateTime @default(now()) @map("created_at")
-  
+  id                 String   @id @default(cuid())
+  userId             String   @map("user_id")
+  requestData        Json     @map("request_data") // Original preference request
+  recommendations    Json // Array of recommended restaurants
+  confidence         Float // Average confidence score
+  selectedRestaurant String?  @map("selected_restaurant") // If user selected one
+  createdAt          DateTime @default(now()) @map("created_at")
+
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   @@map("recommendation_history")
 }
 
 // Tracks API usage for cost monitoring
 model ApiUsageTracking {
-  id        String   @id @default(cuid())
-  userId    String?  @map("user_id") // Optional - can track anonymous usage
-  apiName   String   @map("api_name") // 'google_places', 'google_trends', 'google_maps', 'chatgpt'
-  endpoint  String   // Specific API endpoint called
-  costEstimate Float @map("cost_estimate") // Estimated cost in USD
-  responseTime Int   @map("response_time") // Response time in milliseconds
-  success   Boolean  @default(true) // Whether the API call succeeded
-  createdAt DateTime @default(now()) @map("created_at")
-  
+  id           String   @id @default(cuid())
+  userId       String?  @map("user_id") // Optional - can track anonymous usage
+  apiName      String   @map("api_name") // 'google_places', 'google_trends', 'google_maps', 'chatgpt'
+  endpoint     String // Specific API endpoint called
+  costEstimate Float    @map("cost_estimate") // Estimated cost in USD
+  responseTime Int      @map("response_time") // Response time in milliseconds
+  success      Boolean  @default(true) // Whether the API call succeeded
+  createdAt    DateTime @default(now()) @map("created_at")
+
   // Relations
   user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   @@index([apiName, createdAt])
   @@map("api_usage_tracking")
 }
 
 // Admin configuration for algorithm weights
 model AlgorithmWeights {
-  id                String   @id @default(cuid())
-  socialWeight      Float    @default(0.4) @map("social_weight")
-  personalWeight    Float    @default(0.35) @map("personal_weight") 
-  contextualWeight  Float    @default(0.15) @map("contextual_weight")
-  trendsWeight      Float    @default(0.1) @map("trends_weight")
-  lastUpdated       DateTime @updatedAt @map("last_updated")
-  updatedBy         String   @map("updated_by") // Admin user ID
-  
+  id               String   @id @default(cuid())
+  socialWeight     Float    @default(0.4) @map("social_weight")
+  personalWeight   Float    @default(0.35) @map("personal_weight")
+  contextualWeight Float    @default(0.15) @map("contextual_weight")
+  trendsWeight     Float    @default(0.1) @map("trends_weight")
+  lastUpdated      DateTime @updatedAt @map("last_updated")
+  updatedBy        String   @map("updated_by") // Admin user ID
+
   @@map("algorithm_weights")
 }

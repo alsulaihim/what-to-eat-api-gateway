@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { HttpModule } from '@nestjs/axios';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { FirebaseAuthGuard } from './firebase-auth.guard';
@@ -10,6 +11,7 @@ import { DatabaseModule } from '../common/database/database.module';
 @Module({
   imports: [
     ConfigModule,
+    HttpModule,
     FirebaseModule,
     DatabaseModule,
     ThrottlerModule.forRoot([

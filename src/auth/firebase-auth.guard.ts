@@ -27,7 +27,7 @@ export class FirebaseAuthGuard implements CanActivate {
     }
 
     const idToken = authHeader.split('Bearer ')[1];
-    
+
     if (!idToken) {
       this.logger.warn('Missing Firebase ID token');
       throw new UnauthorizedException('Missing Firebase ID token');
@@ -35,7 +35,7 @@ export class FirebaseAuthGuard implements CanActivate {
 
     try {
       const decodedToken = await this.firebaseService.verifyIdToken(idToken);
-      
+
       // Attach user information to the request object
       request.user = {
         uid: decodedToken.uid,

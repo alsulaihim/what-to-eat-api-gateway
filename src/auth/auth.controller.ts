@@ -5,6 +5,7 @@ import { AuthService } from './auth.service';
 import { FirebaseAuthGuard } from './firebase-auth.guard';
 import type { AuthenticatedRequest } from './firebase-auth.guard';
 import { ValidateTokenDto, ValidateTokenResponseDto } from './dto/validate-token.dto';
+import { RefreshTokenDto, RefreshTokenResponseDto } from './dto/refresh-token.dto';
 
 @ApiTags('Authentication')
 @Controller('api/auth')
@@ -63,5 +64,28 @@ export class AuthController {
   })
   async logout(@Req() req: AuthenticatedRequest): Promise<{ success: boolean }> {
     return this.authService.logout(req.user.uid);
+  }
+
+  @Post('refresh-token')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Refresh Firebase ID token',
+    description: 'Refreshes an expired Firebase ID token using a refresh token',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Token refresh result',
+    type: RefreshTokenResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid refresh token or request body',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Too many requests',
+  })
+  async refreshToken(@Body() refreshTokenDto: RefreshTokenDto): Promise<RefreshTokenResponseDto> {
+    return this.authService.refreshToken(refreshTokenDto.refreshToken);
   }
 }

@@ -12,6 +12,9 @@ import { DatabaseModule } from './common/database/database.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { RecommendationsModule } from './recommendations/recommendations.module';
+import { AdminModule } from './admin/admin.module';
+import { IntelligenceModule } from './intelligence/intelligence.module';
+import { ApifyModule } from './apify/apify.module';
 
 @Module({
   imports: [
@@ -43,6 +46,9 @@ import { RecommendationsModule } from './recommendations/recommendations.module'
     AuthModule,
     UsersModule,
     RecommendationsModule,
+    AdminModule,
+    IntelligenceModule,
+    ApifyModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -94,7 +94,7 @@ export class GooglePlacesService {
       headers: {
         'Content-Type': 'application/json',
         'X-Goog-Api-Key': this.apiKey,
-        'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.priceLevel,places.location,places.types,places.photos',
+        'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.priceLevel,places.priceRange,places.location,places.types,places.photos,places.currentOpeningHours,places.regularOpeningHours,places.nationalPhoneNumber,places.internationalPhoneNumber,places.websiteUri,places.googleMapsUri,places.reviews,places.editorialSummary,places.takeout,places.delivery,places.dineIn,places.curbsidePickup,places.reservable,places.paymentOptions,places.parkingOptions,places.accessibilityOptions,places.allowsDogs,places.outdoorSeating,places.liveMusic,places.menuForChildren,places.servesBeer,places.servesWine,places.servesCocktails,places.servesCoffee,places.servesDessert,places.goodForChildren,places.goodForGroups,places.goodForWatchingSports,places.restroom,places.primaryType,places.primaryTypeDisplayName,places.shortFormattedAddress,places.adrFormatAddress,places.businessStatus,places.currentSecondaryOpeningHours,places.servesBreakfast,places.servesLunch,places.servesDinner,places.servesBrunch,places.servesVegetarianFood,places.evChargeOptions',
       },
     });
 
@@ -180,6 +180,80 @@ export class GooglePlacesService {
           photos: place.photos || [],
           distance: distance,
           cuisine_type: this.extractCuisineTypes(place.types || []),
+
+          // Rich business data
+          phone_number: place.nationalPhoneNumber || place.internationalPhoneNumber,
+          website: place.websiteUri,
+          google_maps_url: place.googleMapsUri,
+          editorial_summary: place.editorialSummary?.text,
+          business_status: place.businessStatus,
+
+          // Enhanced photos with proper URLs
+          photo_urls: place.photos?.map((photo: any) => {
+            // Construct photo URL using the photo reference
+            const photoReference = photo.name?.replace('places/', '') || '';
+            return photoReference ?
+              `https://places.googleapis.com/v1/${photo.name}/media?key=${this.apiKey}&maxHeightPx=400&maxWidthPx=400` : null;
+          }).filter(Boolean) || [],
+
+          // Opening hours with detailed info
+          is_open_now: place.currentOpeningHours?.openNow,
+          opening_hours: place.regularOpeningHours?.weekdayDescriptions || [],
+          current_hours: place.currentOpeningHours?.weekdayDescriptions || [],
+          secondary_hours: place.currentSecondaryOpeningHours?.weekdayDescriptions || [], // Delivery/takeout hours
+
+          // Additional business info
+          short_address: place.shortFormattedAddress,
+          adr_address: place.adrFormatAddress,
+          primary_type: place.primaryType,
+          primary_type_display: place.primaryTypeDisplayName?.text,
+
+          // Enhanced pricing
+          price_range: place.priceRange,
+
+          // Service options
+          supports_takeout: place.takeout,
+          supports_delivery: place.delivery,
+          supports_dine_in: place.dineIn,
+          supports_curbside_pickup: place.curbsidePickup,
+          accepts_reservations: place.reservable,
+
+          // Amenities & Features
+          payment_options: place.paymentOptions,
+          parking_options: place.parkingOptions,
+          accessibility_options: place.accessibilityOptions,
+          allows_dogs: place.allowsDogs,
+          outdoor_seating: place.outdoorSeating,
+          live_music: place.liveMusic,
+          kid_friendly: place.menuForChildren,
+          serves_beer: place.servesBeer,
+          serves_wine: place.servesWine,
+          serves_cocktails: place.servesCocktails,
+
+          // Enhanced amenities and atmosphere
+          serves_coffee: place.servesCoffee,
+          serves_dessert: place.servesDessert,
+          good_for_children: place.goodForChildren,
+          good_for_groups: place.goodForGroups,
+          good_for_watching_sports: place.goodForWatchingSports,
+          ev_charge_options: place.evChargeOptions,
+
+          // Menu & Meal Information
+          serves_breakfast: place.servesBreakfast,
+          serves_lunch: place.servesLunch,
+          serves_dinner: place.servesDinner,
+          serves_brunch: place.servesBrunch,
+          serves_vegetarian_food: place.servesVegetarianFood,
+
+          // Reviews (first few)
+          recent_reviews: place.reviews?.slice(0, 3)?.map((review: any) => ({
+            author_name: review.authorAttribution?.displayName,
+            author_photo: review.authorAttribution?.photoUri,
+            rating: review.rating,
+            text: review.text?.text,
+            time: review.publishTime,
+            relative_time: review.relativePublishTimeDescription,
+          })) || [],
         };
       });
 
@@ -342,7 +416,7 @@ export class GooglePlacesService {
   private calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
     if (!lat1 || !lon1 || !lat2 || !lon2) return 0;
 
-    const R = 3959; // Earth's radius in miles
+    const R = 6371; // Earth's radius in kilometers (changed from 3959 miles)
     const dLat = this.deg2rad(lat2 - lat1);
     const dLon = this.deg2rad(lon2 - lon1);
     const a =
@@ -352,7 +426,7 @@ export class GooglePlacesService {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     const distance = R * c;
 
-    return Math.round(distance * 100) / 100; // Round to 2 decimal places
+    return Math.round(distance * 1000) / 1000; // Round to 3 decimal places for better precision
   }
 
   private deg2rad(deg: number): number {
@@ -389,7 +463,7 @@ export class GooglePlacesService {
         },
         types: ['restaurant', 'food', ...cuisineTypes],
         photos: [],
-        distance: 0.1,
+        distance: 0.16, // ~0.1 miles converted to km
         cuisine_type: cuisineTypes,
       },
       {
@@ -407,7 +481,7 @@ export class GooglePlacesService {
         },
         types: ['restaurant', 'food', ...cuisineTypes],
         photos: [],
-        distance: 0.3,
+        distance: 0.48, // ~0.3 miles converted to km
         cuisine_type: cuisineTypes,
       },
       {
@@ -425,7 +499,7 @@ export class GooglePlacesService {
         },
         types: ['restaurant', 'food', ...cuisineTypes],
         photos: [],
-        distance: 0.5,
+        distance: 0.80, // ~0.5 miles converted to km
         cuisine_type: cuisineTypes,
       },
     ];

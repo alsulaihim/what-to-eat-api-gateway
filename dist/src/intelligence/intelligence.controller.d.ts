@@ -1,0 +1,31 @@
+import { WeatherIntelligenceService } from './weather/weather-intelligence.service';
+import { EventIntelligenceService } from './events/event-intelligence.service';
+import { SentimentAnalysisService } from './sentiment/sentiment-analysis.service';
+import { EconomicIntelligenceService } from './economic/economic-intelligence.service';
+import { HealthIntelligenceService } from './health/health-intelligence.service';
+import { DemographicsService } from './demographics/demographics.service';
+import { TemporalIntelligenceService } from './temporal/temporal-intelligence.service';
+import { MediaIntelligenceService } from './media/media-intelligence.service';
+import { IntelligenceService } from './intelligence.service';
+import { WeatherIntelligence, EventIntelligence, SentimentIntelligence, EconomicIntelligence, HealthIntelligence, DemographicsIntelligence, TemporalIntelligence, MediaIntelligence, type ComprehensiveIntelligenceRequest, ComprehensiveIntelligenceResponse } from '../common/types/intelligence.types';
+export declare class IntelligenceController {
+    private readonly weatherService;
+    private readonly eventService;
+    private readonly sentimentService;
+    private readonly economicService;
+    private readonly healthService;
+    private readonly demographicsService;
+    private readonly temporalService;
+    private readonly mediaService;
+    private readonly intelligenceService;
+    constructor(weatherService: WeatherIntelligenceService, eventService: EventIntelligenceService, sentimentService: SentimentAnalysisService, economicService: EconomicIntelligenceService, healthService: HealthIntelligenceService, demographicsService: DemographicsService, temporalService: TemporalIntelligenceService, mediaService: MediaIntelligenceService, intelligenceService: IntelligenceService);
+    getWeatherCorrelation(location: string, request: any): Promise<WeatherIntelligence>;
+    getEventImpact(location: string, radiusKm: string, request: any): Promise<EventIntelligence>;
+    getSentimentAnalysis(location: string, request: any): Promise<SentimentIntelligence>;
+    getEconomicImpact(request: any): Promise<EconomicIntelligence>;
+    getHealthCorrelation(location: string, request: any): Promise<HealthIntelligence>;
+    getDemographicPatterns(location: string, request: any): Promise<DemographicsIntelligence>;
+    getTemporalBehavior(timezone: string, request: any): Promise<TemporalIntelligence>;
+    getMediaInfluence(location: string, request: any): Promise<MediaIntelligence>;
+    getComprehensiveIntelligence(request: ComprehensiveIntelligenceRequest, req: any): Promise<ComprehensiveIntelligenceResponse>;
+}

@@ -1,8 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { FirebaseService } from '../common/firebase/firebase.service';
 import { DatabaseService } from '../common/database/database.service';
 import { User } from '@prisma/client';
 import * as admin from 'firebase-admin';
+import { HttpService } from '@nestjs/axios';
+import { ConfigService } from '@nestjs/config';
+import { firstValueFrom } from 'rxjs';
 
 export interface ValidateTokenResponse {
   valid: boolean;
@@ -22,6 +25,8 @@ export class AuthService {
   constructor(
     private firebaseService: FirebaseService,
     private databaseService: DatabaseService,
+    private httpService: HttpService,
+    private configService: ConfigService,
   ) {}
 
   async validateToken(idToken: string): Promise<ValidateTokenResponse> {
@@ -102,11 +107,73 @@ export class AuthService {
       // We don't revoke Firebase tokens as they're stateless
       // Just log the logout event
       this.logger.log(`User ${uid} logged out`);
-      
+
       return { success: true };
     } catch (error) {
       this.logger.error(`Logout failed for user ${uid}:`, error);
       return { success: false };
+    }
+  }
+
+  async refreshToken(refreshToken: string): Promise<{
+    success: boolean;
+    idToken?: string;
+    refreshToken?: string;
+    expiresIn?: string;
+    error?: string;
+  }> {
+    try {
+      const apiKey = this.configService.get<string>('FIREBASE_WEB_API_KEY');
+      if (!apiKey) {
+        throw new BadRequestException('Firebase Web API key not configured');
+      }
+
+      // Use Firebase REST API to refresh token
+      const response = await firstValueFrom(
+        this.httpService.post(
+          `https://securetoken.googleapis.com/v1/token?key=${apiKey}`,
+          {
+            grant_type: 'refresh_token',
+            refresh_token: refreshToken,
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        )
+      );
+
+      const data = response.data;
+
+      // Verify the new token is valid by decoding it
+      await this.firebaseService.verifyIdToken(data.id_token);
+
+      this.logger.log('Token refresh successful');
+
+      return {
+        success: true,
+        idToken: data.id_token,
+        refreshToken: data.refresh_token,
+        expiresIn: data.expires_in,
+      };
+    } catch (error) {
+      this.logger.error('Token refresh failed:', error);
+
+      let errorMessage = 'Token refresh failed';
+      if (error instanceof Error && error.message) {
+        errorMessage = error.message;
+      } else if (typeof error === 'object' && error && 'response' in error) {
+        const axiosError = error as any;
+        if (axiosError.response?.data?.error?.message) {
+          errorMessage = axiosError.response.data.error.message;
+        }
+      }
+
+      return {
+        success: false,
+        error: errorMessage,
+      };
     }
   }
 

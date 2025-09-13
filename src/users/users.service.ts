@@ -20,12 +20,13 @@ export class UsersService {
 
   async getUserProfile(firebaseUid: string): Promise<UserProfileResponseDto> {
     try {
-      const user = await this.databaseService.user.findUnique({
+      let user = await this.databaseService.user.findUnique({
         where: { firebaseUid },
       });
 
       if (!user) {
-        throw new NotFoundException(`User with Firebase UID ${firebaseUid} not found`);
+        this.logger.log(`User with Firebase UID ${firebaseUid} not found, creating new user`);
+        user = await this.createUserFromFirebase(firebaseUid);
       }
 
       return this.transformUserToResponse(user);
@@ -124,12 +125,22 @@ export class UsersService {
   }
 
   private validatePreferences(preferences: UpdateUserPreferencesDto): void {
-    // Validate budget range
-    if (preferences.budgetRange) {
-      const validBudgetRanges = ['budget', 'moderate', 'upscale', 'fine-dining'];
-      if (!validBudgetRanges.includes(preferences.budgetRange)) {
+    // Validate budget preference
+    if (preferences.defaultBudget) {
+      const validBudgetOptions = ['low', 'medium', 'high'];
+      if (!validBudgetOptions.includes(preferences.defaultBudget)) {
         throw new BadRequestException(
-          `Invalid budget range. Must be one of: ${validBudgetRanges.join(', ')}`
+          `Invalid budget preference. Must be one of: ${validBudgetOptions.join(', ')}`
+        );
+      }
+    }
+
+    // Validate dining mode
+    if (preferences.defaultMode) {
+      const validModes = ['dine_out', 'takeout', 'delivery'];
+      if (!validModes.includes(preferences.defaultMode)) {
+        throw new BadRequestException(
+          `Invalid dining mode. Must be one of: ${validModes.join(', ')}`
         );
       }
     }
@@ -156,6 +167,49 @@ export class UsersService {
         this.logger.warn(`Invalid dietary restrictions: ${invalidRestrictions.join(', ')}`);
         // Allow unknown restrictions but log them for future reference
       }
+    }
+  }
+
+  private async createUserFromFirebase(firebaseUid: string): Promise<User> {
+    try {
+      const firebaseUser = await this.firebaseService.getUserByUid(firebaseUid);
+
+      if (!firebaseUser) {
+        throw new NotFoundException(`Firebase user with UID ${firebaseUid} not found`);
+      }
+
+      const defaultPreferences = {
+        defaultLocation: '',
+        defaultPartySize: 2,
+        defaultBudget: 'medium',
+        defaultMode: 'dine_out',
+        defaultRadius: 10,
+        cuisinePreferences: [],
+        dietaryRestrictions: [],
+        notifications: {
+          email: true,
+          push: false,
+          trending: true,
+        },
+      };
+
+      const user = await this.databaseService.user.create({
+        data: {
+          firebaseUid,
+          email: firebaseUser.email || '',
+          displayName: firebaseUser.displayName || null,
+          photoURL: firebaseUser.photoURL || null,
+          provider: firebaseUser.providerData?.[0]?.providerId || 'firebase',
+          preferences: defaultPreferences,
+          lastLogin: new Date(),
+        },
+      });
+
+      this.logger.log(`Created new user for Firebase UID: ${firebaseUid}`);
+      return user;
+    } catch (error) {
+      this.logger.error(`Failed to create user for Firebase UID ${firebaseUid}:`, error);
+      throw error;
     }
   }
 

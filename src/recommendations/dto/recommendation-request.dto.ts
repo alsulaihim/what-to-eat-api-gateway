@@ -7,10 +7,10 @@ export enum RecommendationMode {
 }
 
 export enum BudgetRange {
-  LOW = 'low',        // $
-  MEDIUM = 'medium',  // $$
-  HIGH = 'high',      // $$$
-  PREMIUM = 'premium' // $$$$
+  LOW = '$',        // $
+  MEDIUM = '$$',    // $$
+  HIGH = '$$$',     // $$$
+  PREMIUM = '$$$$'  // $$$$
 }
 
 export class RecommendationRequestDto {

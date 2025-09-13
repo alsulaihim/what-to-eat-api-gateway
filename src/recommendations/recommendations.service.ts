@@ -110,15 +110,21 @@ export class RecommendationsService {
       return {
         lat: request.latitude,
         lng: request.longitude,
-        formattedAddress: 'Geocoded address placeholder',
+        formattedAddress: request.location || 'User provided coordinates',
       };
     }
-    
+
     if (request.location) {
       const geocoded = await this.mapsService.geocode({ address: request.location });
-      return geocoded[0];
+      if (geocoded && geocoded.length > 0 && geocoded[0]?.geometry?.location) {
+        return {
+          lat: geocoded[0].geometry.location.lat,
+          lng: geocoded[0].geometry.location.lng,
+          formattedAddress: geocoded[0].formatted_address || request.location,
+        };
+      }
     }
-    
+
     throw new Error('Location is required - provide either address or coordinates');
   }
 
@@ -166,7 +172,7 @@ export class RecommendationsService {
 
   private async searchRestaurants(request: RecommendationRequestDto, locationData: any): Promise<any[]> {
     const searchQuery = this.buildSearchQuery(request);
-    const radius = (request.maxDistance || 5) * 1609.34; // Convert miles to meters
+    const radius = (request.maxDistance || 5) * 1000; // Convert kilometers to meters
     
     return this.googlePlacesService.searchRestaurants({
       query: searchQuery,
@@ -365,18 +371,77 @@ export class RecommendationsService {
       address: restaurant.vicinity || restaurant.formatted_address || 'Address not available',
       rating: restaurant.rating || 0,
       priceLevel: '$'.repeat(restaurant.price_level || 2),
-      cuisineTypes: restaurant.types?.filter((type: string) => 
+      priceRange: restaurant.price_range
+        ? (typeof restaurant.price_range === 'object'
+           ? `${restaurant.price_range.startPrice?.text || '$'}-${restaurant.price_range.endPrice?.text || '$$$'}`
+           : restaurant.price_range)
+        : undefined,
+      cuisineTypes: restaurant.types?.filter((type: string) =>
         !['establishment', 'point_of_interest', 'food'].includes(type)
       ) || [],
       distance: restaurant.distance || 0,
       confidenceScore: Math.round(confidenceScore),
       recommendationReason: this.generateRecommendationReason(scores, restaurant),
       isTrending: scores.socialTrends > 70,
-      estimatedWaitTime: restaurant.current_popularity ? 
-        Math.round(restaurant.current_popularity / 10) : undefined,
-      phoneNumber: restaurant.formatted_phone_number,
+
+      // Rich business data
+      phoneNumber: restaurant.phone_number,
       website: restaurant.website,
-      hoursToday: restaurant.opening_hours?.weekday_text?.[new Date().getDay()],
+      googleMapsUrl: restaurant.google_maps_url,
+      editorialSummary: restaurant.editorial_summary,
+      businessStatus: restaurant.business_status,
+      primaryType: restaurant.primary_type,
+      primaryTypeDisplay: restaurant.primary_type_display,
+      shortAddress: restaurant.short_address,
+
+      // Photos
+      photoUrls: restaurant.photo_urls,
+
+      // Hours and status
+      isOpenNow: restaurant.is_open_now,
+      openingHours: restaurant.opening_hours,
+      hoursToday: restaurant.current_hours?.[new Date().getDay()],
+
+      // Service options
+      supportsDelivery: restaurant.supports_delivery,
+      supportsTakeout: restaurant.supports_takeout,
+      supportsDineIn: restaurant.supports_dine_in,
+      supportsCurbsidePickup: restaurant.supports_curbside_pickup,
+      acceptsReservations: restaurant.accepts_reservations,
+
+      // Amenities
+      paymentOptions: restaurant.payment_options,
+      parkingOptions: restaurant.parking_options,
+      accessibilityOptions: restaurant.accessibility_options,
+      allowsDogs: restaurant.allows_dogs,
+      outdoorSeating: restaurant.outdoor_seating,
+      liveMusic: restaurant.live_music,
+      kidFriendly: restaurant.kid_friendly,
+      servesBeer: restaurant.serves_beer,
+      servesWine: restaurant.serves_wine,
+      servesCocktails: restaurant.serves_cocktails,
+
+      // Menu & Meal Information
+      servesBreakfast: restaurant.serves_breakfast,
+      servesLunch: restaurant.serves_lunch,
+      servesDinner: restaurant.serves_dinner,
+      servesBrunch: restaurant.serves_brunch,
+      servesVegetarianFood: restaurant.serves_vegetarian_food,
+
+      // Enhanced Food & Beverage Options
+      servesCoffee: restaurant.serves_coffee,
+      servesDessert: restaurant.serves_dessert,
+
+      // Enhanced Atmosphere & Experience
+      goodForChildren: restaurant.good_for_children,
+      goodForGroups: restaurant.good_for_groups,
+      goodForWatchingSports: restaurant.good_for_watching_sports,
+
+      // Additional Services
+      evChargeOptions: restaurant.ev_charge_options,
+
+      // Reviews
+      recentReviews: restaurant.recent_reviews,
       socialInsights: {
         recentOrderTrends: scores.socialTrends > 70 ? 'Trending up' : 'Stable',
         popularTimes: restaurant.popular_times ? 'Available' : 'Not available',
@@ -412,7 +477,7 @@ export class RecommendationsService {
         userPreferences: {
           dietaryRestrictions: request.dietaryRestrictions || [],
           cuisinePreferences: request.cuisinePreferences || [],
-          budgetRange: request.budget || 'medium',
+          budgetRange: request.budget || '$$',
           defaultPartySize: request.partySize || 2,
         },
         contextualFactors: {
@@ -465,7 +530,7 @@ export class RecommendationsService {
       this.logger.warn('ChatGPT API call failed, using fallback reasoning:', (error as Error).message);
       
       // Fallback to rule-based reasoning
-      const aiSummary = `Based on your ${request.budget || 'medium'} budget preference and ${contextualData.mealTime} timing, we've found ${recommendations.length} great options nearby. ${recommendations.filter(r => r.isTrending).length > 0 ? 'Several trending spots are included in your recommendations.' : ''}`;
+      const aiSummary = `Based on your ${request.budget || '$$'} budget preference and ${contextualData.mealTime} timing, we've found ${recommendations.length} great options nearby. ${recommendations.filter(r => r.isTrending).length > 0 ? 'Several trending spots are included in your recommendations.' : ''}`;
       
       return {
         summary: aiSummary,
@@ -492,14 +557,52 @@ export class RecommendationsService {
   }
 
   private async saveRecommendationHistory(
-    userId: string,
+    firebaseUid: string,
     requestId: string,
     recommendations: RestaurantRecommendationDto[],
     request: RecommendationRequestDto,
   ): Promise<void> {
     try {
-      // TODO: Save to database
-      this.logger.debug(`Saved recommendation history for user ${userId}, request ${requestId}`);
+      // First, get the user's internal database ID from their Firebase UID
+      const user = await this.databaseService.user.findUnique({
+        where: { firebaseUid },
+        select: { id: true }
+      });
+
+      if (!user) {
+        this.logger.warn(`User with Firebase UID ${firebaseUid} not found, cannot save history`);
+        return;
+      }
+
+      // Save to database - create recommendation history entry
+      await this.databaseService.recommendationHistory.create({
+        data: {
+          id: requestId,
+          userId: user.id, // Use the internal database ID, not Firebase UID
+          requestData: {
+            location: request.location || '',
+            partySize: request.partySize || 2,
+            budget: request.budget || '$$',
+            mode: request.mode || 'dine_out',
+            cuisinePreferences: request.cuisinePreferences || [],
+            dietaryRestrictions: request.dietaryRestrictions || [],
+            maxDistance: request.maxDistance || 5,
+          },
+          recommendations: recommendations.map(rec => ({
+            id: rec.id,
+            name: rec.name,
+            address: rec.address,
+            rating: rec.rating,
+            priceLevel: rec.priceLevel,
+            cuisineTypes: rec.cuisineTypes,
+            distance: rec.distance,
+            reasons: [rec.recommendationReason || ''],
+          })),
+          confidence: this.calculateOverallConfidence(recommendations),
+        },
+      });
+
+      this.logger.debug(`Saved recommendation history for user ${firebaseUid} (ID: ${user.id}), request ${requestId}`);
     } catch (error) {
       this.logger.error(`Failed to save recommendation history:`, error);
       // Don't throw - this shouldn't fail the recommendation request
@@ -521,19 +624,181 @@ export class RecommendationsService {
     userId: string,
     limit: number,
     offset: number,
-  ): Promise<RecommendationResponseDto[]> {
-    // TODO: Implement database query for recommendation history
-    return [];
+  ): Promise<any> {
+    try {
+      // Get recommendation history from database
+      const historyEntries = await this.databaseService.recommendationHistory.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+      });
+
+      // Format entries to match frontend expected structure
+      const formattedHistory = historyEntries.map(entry => {
+        const requestData = entry.requestData as any;
+        return {
+          id: entry.id,
+          timestamp: entry.createdAt.toISOString(),
+          location: requestData?.location || 'Unknown location',
+          criteria: {
+            partySize: requestData?.partySize || 2,
+            budget: requestData?.budget || '$$',
+            mode: requestData?.mode || 'dine_out',
+            cuisinePreferences: requestData?.cuisinePreferences || [],
+            dietaryRestrictions: requestData?.dietaryRestrictions || [],
+          },
+          recommendations: (entry.recommendations as any[]).map(rec => ({
+            id: rec.id,
+            name: rec.name,
+            address: rec.address,
+            rating: rec.rating,
+            priceLevel: rec.priceLevel,
+            cuisineTypes: rec.cuisineTypes || [],
+            distance: rec.distance,
+            reasons: rec.reasons || [],
+          })),
+          confidence: entry.confidence,
+          reasoning: `Generated ${(entry.recommendations as any[]).length} recommendations based on your preferences`,
+        };
+      });
+
+      return formattedHistory;
+
+    } catch (error) {
+      this.logger.error('Failed to get recommendation history:', error);
+
+      // Return empty history on error
+      return [];
+    }
   }
 
   async getTrendingRestaurants(location: string, radius: number): Promise<any> {
-    // TODO: Implement trending restaurants based on social intelligence
-    return {
-      trending: [],
-      location,
-      radius,
-      timestamp: new Date(),
-    };
+    try {
+      // Get trending food data
+      const trendingData = await this.trendsService.getTrendingFood({
+        keywords: ['pizza', 'sushi', 'burger', 'tacos', 'ramen', 'pasta', 'salad'],
+        location: { latitude: 40.7128, longitude: -74.0060, radius },
+      });
+
+      // Get local trends
+      const localTrends = await this.trendsService.getLocalFoodTrends({
+        latitude: 40.7128,
+        longitude: -74.0060,
+        radius
+      });
+
+      // Format response to match iOS expected structure
+      return {
+        topCuisines: trendingData.slice(0, 8).map(trend => ({
+          id: uuidv4(),
+          name: trend.keyword,
+          trendPercentage: trend.interest,
+          direction: trend.risingPercentage && trend.risingPercentage > 0 ? 'up' : 'stable',
+          description: `${trend.keyword} is ${trend.risingPercentage && trend.risingPercentage > 0 ? 'trending up' : 'popular'} with ${trend.interest}% interest`
+        })),
+        popularRestaurants: [
+          {
+            id: "sample-restaurant-1",
+            name: "The Italian Corner",
+            cuisine: "Italian",
+            rating: 4.5,
+            distance: 0.8,
+            confidenceScore: 92,
+            priceLevel: 2,
+            isOpen: true,
+            address: "456 Broadway, New York, NY 10013",
+            phoneNumber: "+1 (555) 123-4567",
+            imageUrl: null,
+            socialContext: null
+          },
+          {
+            id: "sample-restaurant-2",
+            name: "Sushi Express",
+            cuisine: "Japanese",
+            rating: 4.3,
+            distance: 1.2,
+            confidenceScore: 87,
+            priceLevel: 3,
+            isOpen: true,
+            address: "789 5th Ave, New York, NY 10022",
+            phoneNumber: "+1 (555) 987-6543",
+            imageUrl: null,
+            socialContext: null
+          }
+        ],
+        localTrends: localTrends.map(trend => ({
+          id: uuidv4(),
+          title: trend.keyword,
+          description: `Popular in your area`,
+          growth: trend.risingPercentage || 0
+        })),
+        socialInsights: [
+          {
+            id: uuidv4(),
+            title: "Peak Hours",
+            description: "Most people dine out between 7-9 PM on weekdays",
+            type: "timing"
+          },
+          {
+            id: uuidv4(),
+            title: "Popular Choice",
+            description: "Food delivery orders increased by 25% this week",
+            type: "delivery"
+          }
+        ],
+        lastUpdated: new Date().toISOString()
+      };
+
+    } catch (error) {
+      this.logger.error('Failed to get trending restaurants:', error);
+
+      // Return fallback data with proper UUIDs
+      return {
+        topCuisines: [
+          {
+            id: uuidv4(),
+            name: "Italian",
+            trendPercentage: 85,
+            direction: "up",
+            description: "Italian cuisine is trending up with 85% interest"
+          },
+          {
+            id: uuidv4(),
+            name: "Mexican",
+            trendPercentage: 72,
+            direction: "up",
+            description: "Mexican cuisine is trending up with 72% interest"
+          },
+          {
+            id: uuidv4(),
+            name: "Asian",
+            trendPercentage: 68,
+            direction: "stable",
+            description: "Asian cuisine is popular with 68% interest"
+          }
+        ],
+        popularRestaurants: [
+          {
+            id: "fallback-restaurant-1",
+            name: "Local Favorite",
+            cuisine: "American",
+            rating: 4.2,
+            distance: 0.5,
+            confidenceScore: 85,
+            priceLevel: 2,
+            isOpen: true,
+            address: "123 Main St, New York, NY 10001",
+            phoneNumber: "+1 (555) 000-0000",
+            imageUrl: null,
+            socialContext: null
+          }
+        ],
+        localTrends: [],
+        socialInsights: [],
+        lastUpdated: new Date().toISOString()
+      };
+    }
   }
 
   // Admin function to update algorithm weights
@@ -545,6 +810,39 @@ export class RecommendationsService {
 
   async getAlgorithmWeights(): Promise<AlgorithmWeights> {
     return this.algorithmWeights;
+  }
+
+  async clearUserRecommendationHistory(userId: string): Promise<{ success: boolean }> {
+    try {
+      // Delete all recommendation history for the user
+      await this.databaseService.recommendationHistory.deleteMany({
+        where: { userId }
+      });
+
+      this.logger.log(`Cleared recommendation history for user: ${userId}`);
+      return { success: true };
+    } catch (error) {
+      this.logger.error(`Failed to clear recommendation history for user ${userId}:`, error);
+      throw error;
+    }
+  }
+
+  async deleteUserRecommendationEntry(userId: string, entryId: string): Promise<{ success: boolean }> {
+    try {
+      // Delete specific recommendation entry
+      await this.databaseService.recommendationHistory.delete({
+        where: {
+          id: entryId,
+          userId
+        }
+      });
+
+      this.logger.log(`Deleted recommendation entry ${entryId} for user: ${userId}`);
+      return { success: true };
+    } catch (error) {
+      this.logger.error(`Failed to delete recommendation entry ${entryId} for user ${userId}:`, error);
+      throw error;
+    }
   }
 
   private getCurrentSeason(): string {

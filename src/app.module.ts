@@ -11,6 +11,7 @@ import { DatabaseModule } from './common/database/database.module';
 // Feature modules
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
+import { RecommendationsModule } from './recommendations/recommendations.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { UsersModule } from './users/users.module';
     // Feature modules
     AuthModule,
     UsersModule,
+    RecommendationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
